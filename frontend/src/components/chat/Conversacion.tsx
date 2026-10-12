@@ -1,19 +1,20 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Copy, Mic, Send, Sparkles, Square, Trash2, Volume2, VolumeX } from "lucide-react";
+import { Mic, Send, Sparkles, Square, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useChat, type Mensaje } from "../../context/Chat";
 import { useSesion } from "../../context/Sesion";
-import { useApi } from "../../hooks/useApi";
 import { useReconocimiento, vozSoportada } from "../../lib/voz";
 
 const PREGUNTAS_GUIA = [
   "¿Estoy ganando este mes?",
   "¿Qué producto me deja más?",
-  "¿Dónde gasto demasiado?",
   "¿Me va a alcanzar el efectivo?",
+  "¿Qué productos van a mejorar su margen?",
   "Hazme un análisis completo",
+  "¿Qué significa avalancha y bola de nieve?",
+  "¿Dónde gasto demasiado?",
   "¿Qué se me va a agotar?",
 ];
 
@@ -40,8 +41,7 @@ function Markdown({ texto }: { texto: string }) {
 }
 
 function BurbujaClara({ m, ultimo }: { m: Mensaje; ultimo: boolean }) {
-  const { hablando, leer, callar, enviar } = useChat();
-  const [copiado, setCopiado] = useState(false);
+  const { hablando, leer, callar, enviar, limpiar } = useChat();
   const r = m.respuesta;
   return (
     <div className="msg clara">
@@ -86,27 +86,19 @@ function BurbujaClara({ m, ultimo }: { m: Mensaje; ultimo: boolean }) {
                 {hablando === m.id ? "Detener" : "Escuchar"}
               </button>
             )}
-            <button
-              className="btn chico fantasma"
-              onClick={() => {
-                navigator.clipboard?.writeText(JSON.stringify({ answer: r.answer }, null, 2));
-                setCopiado(true);
-                setTimeout(() => setCopiado(false), 1600);
-              }}
-              aria-label="Copiar respuesta como JSON"
-            >
-              <Copy size={14} />
-              {copiado ? "¡Copiado!" : "JSON"}
-            </button>
           </div>
         )}
-        {r && ultimo && r.sugerencias.length > 0 && (
+        {r && ultimo && (
           <div className="fila envolver" style={{ marginTop: 10, gap: 6 }}>
             {r.sugerencias.map((s) => (
               <button key={s} className="chip boton" onClick={() => enviar(s)}>
                 {s}
               </button>
             ))}
+            <button className="chip boton" onClick={limpiar} aria-label="Borrar conversación">
+              <Trash2 size={14} />
+              Borrar conversación
+            </button>
           </div>
         )}
       </div>
@@ -115,19 +107,29 @@ function BurbujaClara({ m, ultimo }: { m: Mensaje; ultimo: boolean }) {
 }
 
 export function Conversacion({ compacto = false }: { compacto?: boolean }) {
-  const { mensajes, ocupado, enviar, cancelar, limpiar, vozAutomatica, setVozAutomatica } = useChat();
+  const { mensajes, ocupado, enviar, cancelar, cerrarChat, vozAutomatica, setVozAutomatica } = useChat();
   const { empresa } = useSesion();
-  const estadoIA = useApi<{ disponible: boolean; modelo: string; modelo_instalado: boolean }>("/ia/estado");
   const [texto, setTexto] = useState("");
   const lista = useRef<HTMLDivElement>(null);
+  const caja = useRef<HTMLTextAreaElement>(null);
   const voz = useReconocimiento((dicho) => {
     setTexto("");
     enviar(dicho);
   });
+  const valorCaja = voz.escuchando ? voz.parcial : texto;
 
   useEffect(() => {
     lista.current?.scrollTo({ top: lista.current.scrollHeight });
   }, [mensajes]);
+
+  // La caja crece con el texto (hasta el max-height del CSS) en lugar de mostrar una barra de desplazamiento.
+  useEffect(() => {
+    const el = caja.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+    el.style.overflowY = el.scrollHeight > el.clientHeight ? "auto" : "hidden";
+  }, [valorCaja]);
 
   const mandar = () => {
     if (!texto.trim()) return;      // si Clara está respondiendo, la nueva pregunta la interrumpe
@@ -140,8 +142,6 @@ export function Conversacion({ compacto = false }: { compacto?: boolean }) {
       mandar();
     }
   };
-  const ia = estadoIA.datos;
-
   return (
     <div className="chat">
       <div className="chat-cabecera">
@@ -150,10 +150,6 @@ export function Conversacion({ compacto = false }: { compacto?: boolean }) {
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="nombre">Clara · tu asistente financiera</div>
-          <div className="estado">
-            <span className={`punto-vivo ${ia?.disponible ? "" : "apagado"}`} />
-            {ia?.disponible ? `IA local activa (${ia.modelo})` : "IA local apagada: respondo con plantillas"}
-          </div>
         </div>
         {vozSoportada.hablar && (
           <button
@@ -166,9 +162,14 @@ export function Conversacion({ compacto = false }: { compacto?: boolean }) {
             {vozAutomatica ? <Volume2 size={15} /> : <VolumeX size={15} />}
           </button>
         )}
-        {mensajes.length > 0 && (
-          <button className="btn icono chico fantasma" onClick={limpiar} aria-label="Borrar conversación" title="Borrar conversación">
-            <Trash2 size={15} />
+        {compacto && (
+          <button
+            className="btn icono chico btn-cerrar-chat"
+            onClick={cerrarChat}
+            aria-label="Cerrar chat"
+            title="Cerrar chat"
+          >
+            <X size={15} />
           </button>
         )}
       </div>
@@ -186,7 +187,7 @@ export function Conversacion({ compacto = false }: { compacto?: boolean }) {
               todas las cifras con tus datos; yo te las explico y te digo qué hacer.
             </p>
             <div className="fila envolver" style={{ justifyContent: "center", gap: 8, marginTop: 6 }}>
-              {PREGUNTAS_GUIA.slice(0, compacto ? 4 : 6).map((p, i) => (
+              {PREGUNTAS_GUIA.slice(0, compacto ? 4 : 8).map((p, i) => (
                 <motion.button key={p} className="chip boton" onClick={() => enviar(p)}
                   initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.15 + i * 0.05 }}>
                   {p}
@@ -242,11 +243,12 @@ export function Conversacion({ compacto = false }: { compacto?: boolean }) {
         </label>
         <textarea
           id={compacto ? "chat-compacto" : "chat-pagina"}
+          ref={caja}
           rows={1}
-          value={voz.escuchando ? voz.parcial : texto}
+          value={valorCaja}
           onChange={(e) => setTexto(e.target.value)}
           onKeyDown={alTeclear}
-          placeholder="Pregúntale a Clara… ej. ¿cuánto gané este mes?"
+          placeholder={compacto ? "Pregúntale a Clara…" : "Pregúntale a Clara… ej. ¿cuánto gané este mes?"}
           maxLength={500}
         />
         {ocupado && !texto.trim() ? (

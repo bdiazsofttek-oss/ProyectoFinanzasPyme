@@ -57,6 +57,16 @@ img, svg { display: block; }
   border-radius: 6px;
 }
 
+/* Gráficas (Recharts): al hacer clic el navegador enfocaba el <svg> y dibujaba un borde negro.
+   Se quita para el clic del mouse y se conserva un foco visible, con el color de la marca,
+   para quien navega con teclado. */
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-wrapper *:focus { outline: none; }
+.recharts-wrapper:focus-visible,
+.recharts-surface:focus-visible { outline: 2px solid var(--celeste); outline-offset: 2px; }
+.recharts-sector:focus, .recharts-rectangle:focus { outline: none; }
+
 .num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .justificado,
 .prosa p,
@@ -90,7 +100,7 @@ img, svg { display: block; }
 }
 .pagina {
   width: 100%;
-  max-width: 1320px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: var(--sp-6) var(--sp-8) 96px;
   display: flex;
@@ -135,8 +145,54 @@ img, svg { display: block; }
 .card:hover,
 .card:focus-within { z-index: 5; }
 .card-titulo { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }
-.card-titulo h3 { display: flex; align-items: center; gap: 8px; }
-.card-titulo .sub { color: var(--muted); font-size: var(--fs-sm); margin-top: 2px; }
+.card-titulo h3 { display: flex; align-items: center; gap: 10px; line-height: 1.3; }
+.card-titulo .sub { color: var(--muted); font-size: var(--fs-sm); margin-top: 6px; line-height: 1.5; }
+.icono-titulo {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--celeste) 13%, transparent);
+  color: var(--celeste-strong);
+}
+.card-titulo:has(.icono-titulo) .sub { margin-left: 40px; }
+/* Lo de la derecha (semáforo o etiqueta) nunca se parte en dos líneas. */
+.card-titulo > .semaforo, .card-titulo > .chip { flex: none; white-space: nowrap; }
+
+/* Sección de página: encabezado con número e ícono para que cada tema se distinga del anterior. */
+.seccion-pagina { display: flex; flex-direction: column; gap: var(--sp-4); padding-top: var(--sp-5); border-top: 1px solid var(--line); }
+.seccion-encabezado { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.seccion-icono {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--celeste-soft);
+  color: var(--celeste-strong);
+}
+.seccion-numero {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--surface);
+}
+.seccion-texto { flex: 1; min-width: 220px; }
+.seccion-texto h2 { font-size: var(--fs-lg); margin: 0; }
+.seccion-texto p { color: var(--muted); font-size: var(--fs-sm); margin: 2px 0 0; }
 
 /* ---------- KPI ---------- */
 .kpi {
@@ -147,7 +203,8 @@ img, svg { display: block; }
   gap: var(--sp-2);
   padding: var(--sp-5) var(--sp-3) var(--sp-3);
 }
-.kpi .etiqueta { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-sm); color: var(--muted); font-weight: 550; white-space: nowrap; }
+.kpi .etiqueta { display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: var(--fs-sm); color: var(--muted); font-weight: 550; text-wrap: balance; }
+.kpi .mini { text-wrap: balance; max-width: 100%; overflow-wrap: anywhere; }
 .kpi .valor { font-size: var(--fs-xl); font-weight: 700; letter-spacing: -0.02em; }
 .kpi .spark { width: 100%; height: 42px; margin-top: 2px; cursor: crosshair; }
 .kpi::after {
@@ -353,9 +410,11 @@ img, svg { display: block; }
   z-index: 40;
   bottom: calc(100% + 8px);
   left: 50%;
-  transform: translateX(-50%) translateY(4px);
+  transform: translateX(-50%);
   width: max-content;
-  max-width: 240px;
+  max-width: min(260px, calc(100vw - 32px));
+  white-space: normal;
+  overflow-wrap: break-word;
   padding: 8px 10px;
   border-radius: 8px;
   background: var(--negro);
@@ -364,13 +423,20 @@ img, svg { display: block; }
   font-weight: 500;
   line-height: 1.45;
   text-align: left;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.18s, transform 0.18s var(--ease);
   box-shadow: var(--shadow-lg);
+  /* Oculto con display (no con opacidad): un globo invisible igual ocupa espacio y crea barra de desplazamiento horizontal. */
+  display: none;
 }
 .ayuda:hover .burbuja,
-.ayuda:focus-visible .burbuja { opacity: 1; transform: translateX(-50%) translateY(0); }
+.ayuda:focus-visible .burbuja { display: block; animation: aparecer-burbuja 0.18s var(--ease); }
+/* Cerca de un borde de la pantalla el globo se alinea hacia adentro para no cortarse. */
+.ayuda.izq .burbuja { left: -8px; transform: none; }
+.ayuda.der .burbuja { left: auto; right: -8px; transform: none; }
+/* En la barra superior el globo abre hacia abajo; con :focus también se abre al tocarlo en el celular. */
+.ayuda.abajo .burbuja { bottom: auto; top: calc(100% + 8px); }
+.ayuda.abajo:focus .burbuja { display: block; }
+@keyframes aparecer-burbuja { from { opacity: 0; margin-bottom: -4px; } to { opacity: 1; margin-bottom: 0; } }
 
 /* ---------- Tooltip de gráficas ---------- */
 .tooltip-grafica {

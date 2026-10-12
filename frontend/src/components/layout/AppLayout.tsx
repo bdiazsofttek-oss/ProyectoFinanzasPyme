@@ -1,24 +1,23 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { MessageCircle, Sparkles, X } from "lucide-react";
-import { Suspense, useEffect, useState } from "react";
+import { MessageCircle, Sparkles } from "lucide-react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { useAlertas } from "../../context/Alertas";
 import { useChat } from "../../context/Chat";
-import { usePeriodo } from "../../context/Periodo";
 import { useSesion } from "../../context/Sesion";
-import { useApi } from "../../hooks/useApi";
-import type { Alerta } from "../../lib/tipos";
-import { Conversacion } from "../chat/Conversacion";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+
+// El chat (con su lector de Markdown) se descarga la primera vez que se abre, no al entrar a la app.
+const Conversacion = lazy(() => import("../chat/Conversacion").then((m) => ({ default: m.Conversacion })));
 
 export function AppLayout({ tema, alternarTema }: { tema: "light" | "dark"; alternarTema: () => void }) {
   const { empresa } = useSesion();
   const { chatAbierto, cerrarChat, alternarChat } = useChat();
-  const { params } = usePeriodo();
+  const { datos: alertas } = useAlertas();
   const ubicacion = useLocation();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [esMovil, setEsMovil] = useState(() => window.matchMedia("(max-width: 900px)").matches);
-  const alertas = useApi<Alerta[]>(empresa?.tiene_datos && params.desde ? `/empresas/${empresa.id_empresa}/alertas` : null, params);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
@@ -31,7 +30,7 @@ export function AppLayout({ tema, alternarTema }: { tema: "light" | "dark"; alte
     cerrarChat();
   }, [ubicacion.pathname, cerrarChat]);
 
-  const rojas = alertas.datos?.filter((a) => a.nivel === "rojo").length ?? 0;
+  const rojas = alertas?.filter((a) => a.nivel === "rojo").length ?? 0;
   const enAsistente = ubicacion.pathname === "/asistente";
 
   return (
@@ -69,17 +68,22 @@ export function AppLayout({ tema, alternarTema }: { tema: "light" | "dark"; alte
               <motion.div className="panel-chat" role="dialog" aria-label="Chat con Clara"
                 initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: 16 }}
                 transition={{ type: "spring", stiffness: 320, damping: 30 }}>
-                <Conversacion compacto />
+                <Suspense fallback={null}>
+                  <Conversacion compacto />
+                </Suspense>
               </motion.div>
             )}
           </AnimatePresence>
-          <motion.button className="fab-chat" onClick={alternarChat} whileHover={{ y: -3 }} whileTap={{ scale: 0.95 }}
-            initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6, type: "spring", stiffness: 260, damping: 22 }}
-            aria-expanded={chatAbierto} aria-label={chatAbierto ? "Cerrar chat" : "Abrir chat con Clara"}>
-            <span className="orbe">{chatAbierto ? <X size={16} /> : <Sparkles size={16} />}</span>
-            <span className="texto">{chatAbierto ? "Cerrar" : "Pregúntale a Clara"}</span>
-            {!chatAbierto && <MessageCircle size={16} style={{ opacity: 0.5 }} className="texto" />}
-          </motion.button>
+          {!chatAbierto && (
+            <motion.button className="fab-chat" onClick={alternarChat} whileHover={{ y: -3 }} whileTap={{ scale: 0.95 }}
+              initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+              transition={{ delay: 0.6, type: "spring", stiffness: 260, damping: 22 }}
+              aria-expanded={false} aria-label="Abrir chat con Clara">
+              <span className="orbe"><Sparkles size={16} /></span>
+              <span className="texto">Pregúntale a Clara</span>
+              <MessageCircle size={16} style={{ opacity: 0.5 }} className="texto" />
+            </motion.button>
+          )}
         </>
       )}
     </div>

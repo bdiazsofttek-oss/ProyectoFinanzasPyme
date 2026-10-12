@@ -1,6 +1,6 @@
 import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, CircleHelp, Info, Minus, OctagonAlert, type LucideIcon } from "lucide-react";
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { cambio } from "../../lib/formato";
 import type { Semaforo as TipoSemaforo } from "../../lib/tipos";
 
@@ -42,7 +42,7 @@ export function Logo({ tamano = 36, conTexto = true, claro = false }: { tamano?:
       {conTexto && (
         <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
           <strong style={{ fontSize: tamano * 0.46, letterSpacing: "-0.02em" }}>Cuentas Claras</strong>
-          <span style={{ fontSize: Math.max(11, tamano * 0.3), opacity: 0.6 }}>finanzas para tu tienda</span>
+          <span style={{ fontSize: Math.max(11, tamano * 0.3), opacity: 0.6 }}>Finanzas para tu negocio</span>
         </span>
       )}
     </span>
@@ -65,10 +65,16 @@ export function NumeroAnimado({ valor, formato, className }: { valor: number; fo
 }
 
 /* ---------- Ayuda (término técnico en tooltip) ---------- */
-export function Ayuda({ texto }: { texto: string }) {
+export function Ayuda({ texto, abajo = false }: { texto: string; abajo?: boolean }) {
   const id = useId();
+  const [lado, setLado] = useState<"" | "izq" | "der">("");
+  // El globo mide hasta 260px: si el ícono está cerca de un borde, se alinea hacia adentro para que se lea completo.
+  const ubicar = (e: { currentTarget: HTMLElement }) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setLado(r.left < 150 ? "izq" : window.innerWidth - r.right < 150 ? "der" : "");
+  };
   return (
-    <span className="ayuda" tabIndex={0} aria-describedby={id}>
+    <span className={`ayuda ${lado} ${abajo ? "abajo" : ""}`} tabIndex={0} aria-describedby={id} onMouseEnter={ubicar} onFocus={ubicar}>
       <CircleHelp size={14} aria-hidden="true" />
       <span className="burbuja" role="tooltip" id={id}>
         {texto}
@@ -79,7 +85,7 @@ export function Ayuda({ texto }: { texto: string }) {
 
 /* ---------- Chip de cambio vs periodo anterior ---------- */
 export function Cambio({ valor, invertido = false }: { valor: number | null; invertido?: boolean }) {
-  if (valor === null || valor === undefined) return <span className="cambio neutro">Sin datos</span>;
+  if (valor === null || valor === undefined) return <span className="cambio neutro">Sin comparación</span>;
   const bueno = invertido ? valor < 0 : valor > 0;
   const clase = Math.abs(valor) < 0.0005 ? "neutro" : bueno ? "sube" : "baja";
   const Icono = valor > 0 ? ArrowUpRight : valor < 0 ? ArrowDownRight : Minus;
@@ -202,12 +208,47 @@ export function Tarjeta({
   );
 }
 
+/* ---------- Sección de página: separa temas distintos dentro de un mismo módulo ---------- */
+export function Seccion({
+  numero,
+  icono: Icono,
+  titulo,
+  descripcion,
+  derecha,
+  children,
+}: {
+  numero: number;
+  icono: LucideIcon;
+  titulo: string;
+  descripcion?: string;
+  derecha?: ReactNode;
+  children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <section className="seccion-pagina" aria-labelledby={id}>
+      <header className="seccion-encabezado">
+        <span className="seccion-icono" aria-hidden="true">
+          <Icono size={18} />
+          <span className="seccion-numero">{numero}</span>
+        </span>
+        <div className="seccion-texto">
+          <h2 id={id}>{titulo}</h2>
+          {descripcion && <p>{descripcion}</p>}
+        </div>
+        {derecha}
+      </header>
+      {children}
+    </section>
+  );
+}
+
 export function TituloTarjeta({ titulo, sub, icono: Icono, derecha }: { titulo: string; sub?: string; icono?: LucideIcon; derecha?: ReactNode }) {
   return (
     <div className="card-titulo">
       <div>
         <h3>
-          {Icono && <Icono size={18} color="var(--celeste)" aria-hidden="true" />}
+          {Icono && <span className="icono-titulo" aria-hidden="true"><Icono size={16} strokeWidth={2} /></span>}
           {titulo}
         </h3>
         {sub && <p className="sub">{sub}</p>}

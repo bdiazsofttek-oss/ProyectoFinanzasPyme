@@ -1,9 +1,10 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowDownUp, Award, Boxes, PackageSearch, Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Area, Bar, BarChart, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { EJE, Leyenda, SERIE, TooltipGrafica } from "../components/charts/comun";
 import { Aviso, Semaforo, Tarjeta, TarjetaCargando, TituloTarjeta } from "../components/ui/basicos";
+import { KpiCard } from "../components/ui/KpiCard";
 import { Pagina } from "../components/ui/Pagina";
 import { usePeriodo } from "../context/Periodo";
 import { useSesion } from "../context/Sesion";
@@ -11,7 +12,9 @@ import { useApi } from "../hooks/useApi";
 import { dinero, dineroCompacto, fechaCorta, numero, pct } from "../lib/formato";
 import type { ProductoMetricas, Productos as TipoProductos, Pronostico, Semaforo as TipoSemaforo } from "../lib/tipos";
 
-type Orden = "utilidad" | "ventas" | "margen_actual" | "dias_inventario" | "nombre";
+type Orden = "utilidad" | "ventas" | "margen_actual" | "valor_inventario" | "dias_inventario" | "nombre";
+
+const ETIQUETA_SEMAFORO: Record<TipoSemaforo, string> = { rojo: "Por agotarse", amarillo: "Vigilar", verde: "Suficiente", sin_movimiento: "Sin ventas" };
 
 function DetalleProducto({ p, idEmpresa, cerrar }: { p: ProductoMetricas; idEmpresa: number; cerrar: () => void }) {
   const fc = useApi<Pronostico>(`/empresas/${idEmpresa}/forecast`, { id_producto: p.id_producto, serie: "unidades", dias: 30 });
@@ -45,7 +48,8 @@ function DetalleProducto({ p, idEmpresa, cerrar }: { p: ProductoMetricas; idEmpr
               ["Costo", dinero(p.costo_promedio)],
               ["Te deja por " + p.unidad, dinero(p.precio_venta - p.costo_promedio)],
               ["Margen actual", pct(p.margen_actual)],
-              ["Existencia", `${numero(p.stock_actual)} ${p.unidad}`],
+              ["Existencia hoy", `${numero(p.stock_actual)} ${p.unidad}`],
+              ["Dinero en existencia", dinero(p.valor_inventario)],
               ["Vendes al día", numero(p.venta_diaria)],
             ].map(([k, v], i) => (
               <motion.div key={k} className="mini-kpi" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.04 }}>
@@ -71,7 +75,7 @@ function DetalleProducto({ p, idEmpresa, cerrar }: { p: ProductoMetricas; idEmpr
                     <YAxis {...EJE} width={44} />
                     <Tooltip content={<TooltipGrafica formato={(v) => `${numero(v)} ${p.unidad}`} titulo={(l) => fechaCorta(String(l))}
                       nombres={{ real: "Vendido", estimado: "Estimado" }} />} />
-                    <Area dataKey="rango" stroke="none" fill={SERIE.ventas} fillOpacity={0.12} isAnimationActive={false} name="_rango" />
+                    <Area dataKey="rango" stroke="none" fill={SERIE.ventas} fillOpacity={0.12} isAnimationActive={false} name="Rango probable" />
                     <Line dataKey="real" stroke={SERIE.ventas} strokeWidth={2} dot={false} animationDuration={900} />
                     <Line dataKey="estimado" stroke={SERIE.ventas} strokeWidth={2} strokeDasharray="5 4" dot={false} animationDuration={900} />
                   </ComposedChart>
@@ -102,6 +106,12 @@ export function Productos() {
   const [semaforo, setSemaforo] = useState<TipoSemaforo | "">("");
   const [orden, setOrden] = useState<{ campo: Orden; asc: boolean }>({ campo: "utilidad", asc: false });
   const [abierto, setAbierto] = useState<ProductoMetricas | null>(null);
+  const tablaRef = useRef<HTMLDivElement>(null);
+  // El recuadro del semáforo filtra la tabla y la trae a la vista, para que se vea el efecto del clic.
+  const verEnTabla = (s: TipoSemaforo) => {
+    setSemaforo(semaforo === s ? "" : s);
+    tablaRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  };
 
   const datos = pr.datos;
   const categorias = useMemo(() => [...new Set(datos?.productos.map((p) => p.categoria))].sort(), [datos]);
@@ -129,8 +139,8 @@ export function Productos() {
   );
 
   return (
-    <Pagina eyebrow="Productos" titulo="¿Qué producto te deja más?"
-      descripcion="Ventas, costo y ganancia de cada producto, y el semáforo de tu inventario. Haz clic en un producto para ver su detalle y su estimación de ventas.">
+    <Pagina titulo="Productos e inventario"
+      descripcion={datos ? `Ventas, costo, ganancia y existencias por producto · ${datos.periodo.etiqueta}. Haz clic en un producto para ver su detalle.` : undefined}>
       {pr.error && <Aviso tipo="error">{pr.error}</Aviso>}
       {!datos ? (
         <div className="grid grid-2">
@@ -139,6 +149,17 @@ export function Productos() {
         </div>
       ) : (
         <>
+          <div className="grid grid-kpi">
+            <KpiCard indice={0} etiqueta="Dinero en tu inventario hoy" valor={datos.inventario.valor_total} formato={dinero}
+              tecnico="Valor del inventario a costo: existencias de hoy × lo que te costó cada producto"
+              nota={`${numero(datos.inventario.unidades_total)} piezas en existencia`} />
+            <KpiCard indice={1} etiqueta="Si vendieras todo" valor={datos.inventario.valor_a_precio_venta} formato={dinero}
+              tecnico="Existencias de hoy × precio de venta"
+              nota={`te dejaría ${dinero(datos.inventario.valor_a_precio_venta - datos.inventario.valor_total)} más de lo que pagaste`} />
+            <KpiCard indice={2} etiqueta="Compraste de mercancía" valor={datos.inventario.compras_periodo} formato={dinero}
+              tecnico="Compras de producto registradas en el periodo elegido" nota={datos.periodo.etiqueta} />
+          </div>
+
           <div className="grid grid-2">
             <Tarjeta>
               <TituloTarjeta icono={Award} titulo="Top 5 por ganancia" sub={datos.periodo.etiqueta} />
@@ -149,34 +170,35 @@ export function Productos() {
                     <XAxis type="number" {...EJE} tickFormatter={dineroCompacto} />
                     <YAxis type="category" dataKey="nombre" {...EJE} width={150} tick={{ fill: "var(--ink-2)", fontSize: 12 }} />
                     <Tooltip content={<TooltipGrafica nombres={{ utilidad: "Te dejó" }} titulo={(l) => String(l)} />} cursor={{ fill: "var(--surface-hover)" }} />
-                    <Bar dataKey="utilidad" fill={SERIE.utilidad} radius={[0, 4, 4, 0]} maxBarSize={22} animationDuration={900}
+                    <Bar dataKey="utilidad" fill={SERIE.utilidad} radius={[0, 4, 4, 0]} maxBarSize={22} animationDuration={900} activeBar={{ stroke: "none", fillOpacity: 0.85 }}
                       label={{ position: "right", formatter: (v: unknown) => dineroCompacto(Number(v)), fill: "var(--ink-2)", fontSize: 12 }} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </Tarjeta>
             <Tarjeta retraso={0.06}>
-              <TituloTarjeta icono={Boxes} titulo="Semáforo de inventario" sub={`Valor de tu inventario: ${dinero(datos.inventario.valor_total)}`} />
+              <TituloTarjeta icono={Boxes} titulo="Semáforo de inventario" sub="Con tus existencias de hoy" />
               <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 10 }}>
                 {(["rojo", "amarillo", "verde", "sin_movimiento"] as TipoSemaforo[]).map((s, i) => (
                   <motion.button key={s} className="card interactiva centrado" style={{ padding: 16, cursor: "pointer", alignItems: "center", gap: 8,
                     outline: semaforo === s ? "2px solid var(--celeste)" : undefined }}
-                    onClick={() => setSemaforo(semaforo === s ? "" : s)} aria-pressed={semaforo === s}
+                    onClick={() => verEnTabla(s)} aria-pressed={semaforo === s}
                     initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 + i * 0.05 }} whileTap={{ scale: 0.97 }}>
                     <strong className="num" style={{ fontSize: "var(--fs-xl)" }}>{datos.inventario[s]}</strong>
-                    <Semaforo estado={s} texto={{ rojo: "Por agotarse", amarillo: "Vigilar", verde: "Suficiente", sin_movimiento: "Sin ventas" }[s]} />
+                    <Semaforo estado={s} texto={ETIQUETA_SEMAFORO[s]} />
                   </motion.button>
                 ))}
               </div>
               <p className="mini muted justificado">
                 Rojo: se acaba en {numero(empresa?.umbrales.dias_inventario_bajo)} días o menos al ritmo de venta de los últimos 30 días.
-                Amarillo: hasta el doble. Toca un recuadro para filtrar la tabla.
+                Amarillo: hasta el doble. Toca un recuadro para ver esos productos en la tabla.
               </p>
             </Tarjeta>
           </div>
 
+          <div ref={tablaRef} style={{ scrollMarginTop: 80 }}>
           <Tarjeta retraso={0.1} interactiva={false}>
-            <div className="fila-entre envolver">
+            <div className="fila-entre envolver salto-tabla">
               <TituloTarjeta icono={PackageSearch} titulo="Todos tus productos" sub={`${filtrados.length} de ${datos.productos.length} productos`} />
               <div className="filtros">
                 <div style={{ position: "relative" }}>
@@ -184,6 +206,12 @@ export function Productos() {
                   <input className="input" style={{ paddingLeft: 36 }} placeholder="Buscar producto…" value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)} aria-label="Buscar producto" />
                 </div>
+                <select className="select" style={{ width: 180 }} value={semaforo} onChange={(e) => setSemaforo(e.target.value as TipoSemaforo | "")} aria-label="Inventario">
+                  <option value="">Todo el inventario</option>
+                  {(["rojo", "amarillo", "verde", "sin_movimiento"] as TipoSemaforo[]).map((s) => (
+                    <option key={s} value={s}>{ETIQUETA_SEMAFORO[s]} ({datos.inventario[s]})</option>
+                  ))}
+                </select>
                 <select className="select" style={{ width: 190 }} value={categoria} onChange={(e) => setCategoria(e.target.value)} aria-label="Categoría">
                   <option value="">Todas las categorías</option>
                   {categorias.map((c) => <option key={c}>{c}</option>)}
@@ -199,7 +227,8 @@ export function Productos() {
                     <th className="der">Costo</th>
                     <Th campo="utilidad">Te dejó</Th>
                     <Th campo="margen_actual">Margen</Th>
-                    <th className="der">Existencia</th>
+                    <th className="der">Existencia hoy</th>
+                    <Th campo="valor_inventario">Dinero en existencia</Th>
                     <Th campo="dias_inventario" clase="cen">Inventario</Th>
                   </tr>
                 </thead>
@@ -224,6 +253,7 @@ export function Productos() {
                           </span>
                         </td>
                         <td className="der num">{numero(p.stock_actual)} <span className="mini muted">{p.unidad}</span></td>
+                        <td className="der num">{dinero(p.valor_inventario)}</td>
                         <td className="cen">
                           <Semaforo estado={p.semaforo} texto={p.dias_inventario !== null ? `${numero(p.dias_inventario)} d` : undefined} />
                         </td>
@@ -234,6 +264,7 @@ export function Productos() {
               </table>
             </div>
           </Tarjeta>
+          </div>
         </>
       )}
       <AnimatePresence>{abierto && id && <DetalleProducto p={abierto} idEmpresa={id} cerrar={() => setAbierto(null)} />}</AnimatePresence>

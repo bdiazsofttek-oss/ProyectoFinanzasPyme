@@ -180,6 +180,12 @@ def finanzas(conn: Connection, id_empresa: int, desde: date, hasta: date) -> Fin
     def pct(monto: float) -> float | None:
         return monto / k.ventas if k.ventas else None
 
+    # Impuestos del periodo con el mismo cálculo del apartado de Impuestos (ISR + IVA neto a pagar).
+    from app.impuestos.servicio import impuestos_del_periodo
+
+    imp = impuestos_del_periodo(conn, id_empresa, desde, hasta)
+    neta = round(k.utilidad - imp["total"], 2)
+    regimen = f" ({imp['regimen_nombre']})" if imp["regimen_nombre"] else ""
     estado = [
         LineaEstado(clave="ventas", etiqueta="Lo que vendiste", termino_tecnico="Ventas netas",
                     monto=k.ventas, porcentaje=pct(k.ventas), nivel="ingreso"),
@@ -195,10 +201,13 @@ def finanzas(conn: Connection, id_empresa: int, desde: date, hasta: date) -> Fin
         LineaEstado(clave="utilidad_antes_impuestos", etiqueta="Lo que ganaste antes de impuestos",
                     termino_tecnico="Utilidad antes de impuestos",
                     monto=k.utilidad, porcentaje=pct(k.utilidad), nivel="subtotal"),
-        LineaEstado(clave="impuestos", etiqueta="Impuestos", termino_tecnico="ISR / IVA",
-                    monto=0.0, porcentaje=None, nivel="info", nota="No calculado (próxima fase)"),
-        LineaEstado(clave="utilidad", etiqueta="Lo que ganaste", termino_tecnico="Utilidad neta",
-                    monto=k.utilidad, porcentaje=pct(k.utilidad), nivel="total"),
+        LineaEstado(clave="isr", etiqueta="ISR estimado", termino_tecnico=f"Impuesto sobre la renta de los meses del periodo{regimen}",
+                    monto=imp["isr"], porcentaje=pct(imp["isr"]), nivel="resta"),
+        LineaEstado(clave="iva", etiqueta="IVA a pagar al SAT",
+                    termino_tecnico="Tus precios incluyen IVA: es el IVA cobrado menos el IVA de tus compras y gastos con factura",
+                    monto=imp["iva"], porcentaje=pct(imp["iva"]), nivel="resta"),
+        LineaEstado(clave="utilidad", etiqueta="Lo que ganaste después de impuestos", termino_tecnico="Utilidad neta (estimada)",
+                    monto=neta, porcentaje=pct(neta), nivel="total"),
     ]
 
     mensual = serie(conn, id_empresa, desde, hasta, "mes")
@@ -268,6 +277,9 @@ def productos(conn: Connection, id_empresa: int, desde: date, hasta: date, umbra
         verde=sum(p.semaforo == "verde" for p in lista), amarillo=sum(p.semaforo == "amarillo" for p in lista),
         rojo=sum(p.semaforo == "rojo" for p in lista), sin_movimiento=sum(p.semaforo == "sin_movimiento" for p in lista),
         valor_total=round(sum(p.valor_inventario for p in lista), 2),
+        valor_a_precio_venta=float(f.redondear(sum((p["stock_actual"] * p["precio_venta"] for p in catalogo), CERO))),
+        unidades_total=float(sum((p["stock_actual"] for p in catalogo), CERO)),
+        compras_periodo=float(f.redondear(sum((c["monto"] for c in q.compras_diarias(conn, id_empresa, desde, hasta)), CERO))),
     )
     return Productos(
         periodo=_periodo(desde, hasta), productos=lista, top_utilidad=con_ventas[:5],

@@ -1,12 +1,12 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { Loader2, RotateCcw, Save, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { TarjetaAlerta } from "../components/AlertaTarjeta";
 import { Aviso, EstadoVacio, Segmentado, Tarjeta, TarjetaCargando, TituloTarjeta } from "../components/ui/basicos";
 import { Pagina } from "../components/ui/Pagina";
+import { useAlertas } from "../context/Alertas";
 import { usePeriodo } from "../context/Periodo";
 import { useSesion } from "../context/Sesion";
-import { useApi } from "../hooks/useApi";
 import { api } from "../lib/api";
 import type { Alerta, NivelAlerta, Umbrales } from "../lib/tipos";
 
@@ -45,7 +45,7 @@ function PanelUmbrales({ alGuardar }: { alGuardar: () => void }) {
 
   return (
     <Tarjeta retraso={0.1}>
-      <TituloTarjeta icono={SlidersHorizontal} titulo="¿Cuándo quieres que te avise?" sub="Ajusta los umbrales a tu tipo de negocio" />
+      <TituloTarjeta icono={SlidersHorizontal} titulo="Umbrales de las alertas" sub="Valores a partir de los cuales se genera cada aviso" />
       <div className="pila" style={{ gap: 16 }}>
         {CONTROLES.map((c) => {
           const v = valores[c.clave];
@@ -79,8 +79,9 @@ export function Alertas() {
   const { empresa } = useSesion();
   const { params, seleccion } = usePeriodo();
   const id = empresa?.id_empresa;
-  const listo = Boolean(id && empresa?.tiene_datos && params.desde);
-  const base = useApi<Alerta[]>(listo ? `/empresas/${id}/alertas` : null, params);
+  // El mismo pedido alimenta el contador del menú lateral: al guardar umbrales,
+  // recargar() actualiza las dos vistas sin recargar la página.
+  const base = useAlertas();
   const [redactadas, setRedactadas] = useState<Alerta[] | null>(null);
   const [redactando, setRedactando] = useState(false);
   const [filtro, setFiltro] = useState<"todas" | NivelAlerta>("todas");
@@ -105,21 +106,8 @@ export function Alertas() {
   const conteo = (n: NivelAlerta) => base.datos?.filter((a) => a.nivel === n).length ?? 0;
 
   return (
-    <Pagina eyebrow="Alertas" titulo="Lo que necesita tu atención"
-      descripcion={`Avisos de ${seleccion?.etiqueta.toLowerCase() ?? "este periodo"}. El sistema detecta cada alerta y calcula sus cifras; la IA local solo la redacta en palabras sencillas.`}
-      acciones={
-        <AnimatePresence mode="wait">
-          {redactando ? (
-            <motion.span key="r" className="chip celeste" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <Loader2 size={13} className="girando" /> Clara está redactando…
-            </motion.span>
-          ) : redactadas?.some((a) => a.redactado_por_ia) ? (
-            <motion.span key="ok" className="chip celeste" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-              <Sparkles size={13} /> Redactadas por IA
-            </motion.span>
-          ) : null}
-        </AnimatePresence>
-      }>
+    <Pagina titulo="Alertas"
+      descripcion={`Avisos de ${seleccion?.etiqueta.toLowerCase() ?? "este periodo"}, ordenados por urgencia. Las cifras las calcula el sistema; la IA solo redacta el texto.`}>
       {base.error && <Aviso tipo="error">{base.error}</Aviso>}
       <div className="grid grid-lateral">
         <div className="pila" style={{ gap: 14 }}>

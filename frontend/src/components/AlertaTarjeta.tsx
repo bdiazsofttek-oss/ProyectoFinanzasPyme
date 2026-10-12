@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, CheckCircle2, Lightbulb, OctagonAlert, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowRight, CheckCircle2, Lightbulb, OctagonAlert, TriangleAlert } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { Alerta } from "../lib/tipos";
 
@@ -9,7 +9,10 @@ const NIVEL = {
   verde: { Icono: CheckCircle2, texto: "Bien" },
 } as const;
 
-const RUTA = { resumen: "/", finanzas: "/finanzas", productos: "/productos", flujo: "/flujo" } as const;
+const RUTA = {
+  resumen: "/resumen", finanzas: "/finanzas", productos: "/productos", flujo: "/flujo",
+  proyecciones: "/proyecciones", impuestos: "/impuestos", deudas: "/deudas",
+} as const;
 
 export function TarjetaAlerta({ alerta, indice = 0, compacta = false, redactando = false }: {
   alerta: Alerta;
@@ -49,11 +52,6 @@ export function TarjetaAlerta({ alerta, indice = 0, compacta = false, redactando
               {alerta.accion}
             </p>
             <div className="fila envolver" style={{ marginTop: 10 }}>
-              {alerta.redactado_por_ia && (
-                <span className="chip celeste">
-                  <Sparkles size={12} /> Redactado por IA con cifras del sistema
-                </span>
-              )}
               <Link to={RUTA[alerta.modulo]} className="btn chico fantasma">
                 Ver detalle <ArrowRight size={14} />
               </Link>
