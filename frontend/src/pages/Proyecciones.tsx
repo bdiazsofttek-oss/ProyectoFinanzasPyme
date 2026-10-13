@@ -174,7 +174,7 @@ function Equilibrio({ d, mesNombre }: { d: TipoProyecciones; mesNombre: string }
 export function Proyecciones() {
   const { empresa } = useSesion();
   const id = empresa?.id_empresa;
-  const [semanas, setSemanas] = useState<"4" | "8" | "12">("8");
+  const [semanas, setSemanas] = useState<"2" | "4" | "8">("4");
   const listo = Boolean(id && empresa?.tiene_datos);
   const pr = useApi<TipoProyecciones>(listo ? `/empresas/${id}/proyecciones` : null, { semanas });
   const d = pr.datos;
@@ -207,15 +207,15 @@ export function Proyecciones() {
 
       {d ? (
         <div className="grid grid-kpi">
-          <KpiCard indice={0} etiqueta={`Ventas de ${mesNombre}`} tecnico="Ventas proyectadas del mes: lo vendido a la fecha más el pronóstico de los días que faltan"
+          <KpiCard indice={0} etiqueta={`Ventas de ${mesNombre}`} pregunta="¿Cuánto voy a vender el próximo mes?" tecnico="Ventas proyectadas del mes: lo vendido a la fecha más el pronóstico de los días que faltan"
             valor={d.mes.ventas} formato={(n) => dinero(Math.round(n), false)} nota={`entre ${dineroCompacto(d.mes.ventas_pesimista)} y ${dineroCompacto(d.mes.ventas_optimista)}`} />
-          <KpiCard indice={1} etiqueta="Lo que ganarías" tecnico="Utilidad proyectada del mes, antes de impuestos"
+          <KpiCard indice={1} etiqueta="Lo que ganarías" pregunta="¿Cuánto voy a ganar el próximo mes?" tecnico="Utilidad proyectada del mes, antes de impuestos"
             valor={d.mes.utilidad} formato={(n) => dinero(Math.round(n), false)} nota={`entre ${dineroCompacto(d.mes.utilidad_pesimista)} y ${dineroCompacto(d.mes.utilidad_optimista)}`} />
-          <KpiCard indice={2} etiqueta="Efectivo a fin de mes" tecnico="Efectivo estimado (escenario esperado)"
+          <KpiCard indice={2} etiqueta="Efectivo a fin de mes" pregunta="¿Me va a alcanzar el efectivo?" tecnico="Efectivo estimado (escenario esperado)"
             valor={d.flujo.fin_de_mes.esperado} formato={(n) => dinero(Math.round(n), false)} nota={`si te va mal: ${dineroCompacto(d.flujo.fin_de_mes.pesimista)}`} />
-          <KpiCard indice={3} etiqueta="Días de colchón" tecnico="Efectivo actual / gasto diario promedio (gastos + compras + pagos de deuda)"
+          <KpiCard indice={3} etiqueta="Días de colchón" pregunta="¿Me va a alcanzar el efectivo?" tecnico="Efectivo actual / gasto diario promedio (gastos + compras + pagos de deuda)"
             valor={d.flujo.dias_colchon} formato={(n) => `${numero(Math.round(n))} días`} nota="cuánto aguantas sin vender" />
-          <KpiCard indice={4} etiqueta="Precisión aproximada" tecnico="100% menos el error promedio del método en las últimas 8 semanas"
+          <KpiCard indice={4} etiqueta="Precisión aproximada" pregunta="¿Qué es el pronóstico?" tecnico="100% menos el error promedio del método en las últimas 8 semanas"
             valor={d.pronostico.precision} formato={(n) => `${numero(Math.round(n))}%`} nota={d.pronostico.precision === null ? "faltan semanas de historia" : "qué tan bien acertó antes"} />
         </div>
       ) : (
@@ -233,7 +233,7 @@ export function Proyecciones() {
       <Seccion numero={1} icono={ChartLine} titulo="¿Cuánto vas a vender y te alcanzará el efectivo?"
         descripcion="Pronóstico semana a semana. El horizonte cambia estas dos gráficas; las cifras de arriba son siempre del mes en curso."
         derecha={<Segmentado etiqueta="Horizonte de las gráficas" valor={semanas} onChange={setSemanas}
-          opciones={[{ valor: "4", texto: "4 semanas" }, { valor: "8", texto: "8 semanas" }, { valor: "12", texto: "12 semanas" }]} />}>
+          opciones={[{ valor: "2", texto: "2 semanas" }, { valor: "4", texto: "4 semanas" }, { valor: "8", texto: "8 semanas" }]} />}>
         <div className="grid grid-2">
           <Tarjeta retraso={0.04}>
             <TituloTarjeta icono={ChartLine} titulo="Ventas por semana"
