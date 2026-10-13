@@ -62,7 +62,7 @@ describe("Impuestos", () => {
     negocio.actual = "papeleria";
     const { Impuestos } = await import("../pages/Impuestos");
     render(<MemoryRouter><Impuestos /></MemoryRouter>);
-    expect(await screen.findByText("Pagas al SAT")).toBeInTheDocument();
+    expect(await screen.findByText("Debes de impuestos")).toBeInTheDocument();
     expect(screen.getAllByText(/No sustituye la declaración ni la asesoría de un contador/).length).toBeGreaterThan(0);
     expect(screen.getByText(/En RESICO los gastos NO se deducen para ISR/)).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Gastos deducibles del mes" })).toBeInTheDocument();
